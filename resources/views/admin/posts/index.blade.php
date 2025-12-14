@@ -147,6 +147,9 @@
                                                                 ID
                                                             </th>
                                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium custom-text uppercase tracking-wider">
+                                                                Image
+                                                            </th>
+                                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium custom-text uppercase tracking-wider">
                                                                 Title
                                                             </th>
                                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium custom-text uppercase tracking-wider">
@@ -172,6 +175,16 @@
                                                         <tr class="hover:custom-bg-dark transition-colors">
                                                             <td class="px-6 py-4 whitespace-nowrap">
                                                                 <div class="text-sm custom-text">{{ $post->id }}</div>
+                                                            </td>
+                                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                                <div class="flex items-center justify-center overflow-hidden rounded-md">
+                                                                    @if($post->image)
+                                                                    <img src="{{ asset($post->image) }}" alt="{{ $post->title }}" class="w-full h-full object-cover">
+                                                                    @else
+                                                                    <h1 class="custom-text italic font-sans">No Image</h1>
+                
+                                                                    @endif
+                                                                </div>
                                                             </td>
                                                             <td class="px-6 py-4 whitespace-nowrap">
                                                                 <div class="flex items-center">
@@ -229,7 +242,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <!-- Pagination Links -->
                                 <div class="px-6 py-4">
                                     {{ $posts->links() }}

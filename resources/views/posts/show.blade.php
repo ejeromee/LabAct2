@@ -30,6 +30,36 @@
                         @endif
                     </p>
 
+                    <!-- Post Images -->
+                    @if($post->hasImage())
+                        <div class="mt-6 mb-8">
+                            @if($post->images->count() > 0)
+                                <!-- Multiple images from new system -->
+                                @if($post->images->count() == 1)
+                                    <!-- Single image -->
+                                    <img src="{{ $post->images->first()->image_url }}" alt="{{ $post->title }}" class="w-full max-w-2xl mx-auto rounded-lg shadow-lg">
+                                @else
+                                    <!-- Multiple images gallery -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        @foreach($post->images as $image)
+                                            <div class="relative group cursor-pointer" onclick="openImageModal('{{ $image->image_url }}', '{{ $post->title }}')">
+                                                <img src="{{ $image->thumbnail_url }}" alt="{{ $post->title }}" class="w-full h-48 object-cover rounded-lg shadow-md group-hover:shadow-lg transition">
+                                                <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition rounded-lg flex items-center justify-center">
+                                                    <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            @else
+                                <!-- Legacy single image -->
+                                <img src="{{ $post->image_url }}" alt="{{ $post->title }}" class="w-full max-w-2xl mx-auto rounded-lg shadow-lg">
+                            @endif
+                        </div>
+                    @endif
+
                     <div class="mt-8 text-gray-700 prose max-w-none">
                         <p>{{ $post->content }}</p>
                     </div>
@@ -54,4 +84,45 @@
         </div>
     </div>
 </div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="fixed inset-0 bg-black bg-opacity-75 z-50 hidden flex items-center justify-center p-4">
+    <div class="relative max-w-4xl max-h-full">
+        <img id="modalImage" src="" alt="" class="max-w-full max-h-full object-contain rounded-lg">
+        <button onclick="closeImageModal()" class="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<script>
+function openImageModal(imageUrl, altText) {
+    document.getElementById('modalImage').src = imageUrl;
+    document.getElementById('modalImage').alt = altText;
+    document.getElementById('imageModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal() {
+    document.getElementById('imageModal').classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Close modal when clicking outside the image
+document.getElementById('imageModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeImageModal();
+    }
+});
+
+// Close modal with escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeImageModal();
+    }
+});
+</script>
+
 @endsection

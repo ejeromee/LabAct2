@@ -48,11 +48,29 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 @foreach($posts as $post)
                     <div class="bg-white rounded-lg overflow-hidden shadow-md border border-gray-100 hover:shadow-lg transition duration-300">
-                        <!-- Placeholder Image -->
-                        <div class="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
+                        <!-- Post Image -->
+                        <div class="h-48 bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center overflow-hidden relative">
+                            @if($post->hasImage())
+                                @if($post->main_image)
+                                    <img src="{{ $post->main_image->thumbnail_url ?? $post->thumbnail }}" alt="{{ $post->title }}" class="w-full h-full object-cover">
+                                    
+                                    <!-- Image count badge -->
+                                    @if($post->image_count > 1)
+                                        <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-full flex items-center">
+                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path>
+                                            </svg>
+                                            {{ $post->image_count }}
+                                        </div>
+                                    @endif
+                                @else
+                                    <img src="{{ $post->thumbnail }}" alt="{{ $post->title }}" class="w-full h-full object-cover">
+                                @endif
+                            @else
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            @endif
                         </div>
                         
                         <div class="p-6">

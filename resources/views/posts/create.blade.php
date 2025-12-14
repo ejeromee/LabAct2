@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl" style="color: oklch(0.15 0.08 231);">
+        <h2 class="font-semibold text-xl " style="color: oklch(0.15 0.08 231);">
             {{ __('Create Post') }}
         </h2>
     </x-slot>
@@ -60,14 +60,14 @@
 <div class="py-12">
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
         <div class="custom-bg-light overflow-hidden shadow-xl sm:rounded-lg border custom-border">
-            <div class="p-6 sm:px-20 custom-bg-light">
+            <div class="p-6 sm:px-20 custom-bg">
                 <div class="mb-4">
                     <a href="{{ route('posts.index') }}" class="custom-link">
                         ← Back to all posts
                     </a>
                 </div>
 
-                <form action="{{ route('user.posts.store') }}" method="POST" class="space-y-6">
+                <form action="{{ route('user.posts.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                     @csrf
                     
                     @if ($errors->any())
@@ -92,6 +92,18 @@
                         <label for="content" class="block text-sm font-medium custom-text">Content</label>
                         <div class="mt-1">
                             <textarea name="content" id="content" rows="10" class="custom-form-input shadow" required>{{ old('content') }}</textarea>
+                        </div>
+                    </div>
+                    <!-- Multiple File Upload -->
+                    <div>
+                        <label for="images" class="block text-sm font-medium custom-text">Upload Images</label>
+                        <div class="mt-1">
+                            <input type="file" name="images[]" id="images" multiple class="block w-full text-sm custom-text border custom-border rounded-lg cursor-pointer custom-bg-light focus:outline-none p-2" accept="image/*">
+                        </div>
+                        <p class="mt-1 text-sm custom-text-muted">Select multiple images (Max: 5 images, 2MB each). Formats: JPG, PNG, GIF</p>
+                        
+                        <!-- Image preview area -->
+                        <div id="imagePreview" class="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 hidden">
                         </div>
                     </div>
 
@@ -119,4 +131,58 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('images').addEventListener('change', function(e) {
+    const files = e.target.files;
+    const previewContainer = document.getElementById('imagePreview');
+    previewContainer.innerHTML = '';
+    
+    if (files.length === 0) {
+        previewContainer.classList.add('hidden');
+        return;
+    }
+    
+    // Validate file count
+    if (files.length > 5) {
+        alert('You can only upload a maximum of 5 images.');
+        e.target.value = '';
+        return;
+    }
+    
+    previewContainer.classList.remove('hidden');
+    
+    Array.from(files).forEach((file, index) => {
+        // Validate file size
+        if (file.size > 2 * 1024 * 1024) {
+            alert(`File "${file.name}" is too large. Maximum size is 2MB.`);
+            return;
+        }
+        
+        // Validate file type
+        if (!file.type.match('image.*')) {
+            alert(`File "${file.name}" is not an image.`);
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imageDiv = document.createElement('div');
+            imageDiv.className = 'relative';
+            imageDiv.innerHTML = `
+                <img src="${e.target.result}" class="w-full h-20 object-cover rounded border border-gray-300">
+                <div class="absolute top-1 right-1 bg-black bg-opacity-50 text-white text-xs px-1 rounded">
+                    ${index + 1}
+                </div>
+                <div class="text-xs text-center mt-1 custom-text truncate" title="${file.name}">
+                    ${file.name}
+                </div>
+            `;
+            previewContainer.appendChild(imageDiv);
+        };
+        reader.readAsDataURL(file);
+    });
+});
+</script>
+
 </x-app-layout>
