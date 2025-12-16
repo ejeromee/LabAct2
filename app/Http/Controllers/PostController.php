@@ -15,31 +15,291 @@ use Intervention\Image\ImageManager;
 class PostController extends Controller
 {
     /**
-     * Display a listing of the posts.
+     * Display a listing of posts for guests (public view).
+     *
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function guestIndex(): View
+    {
+        $posts = Post::with(['user', 'category'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(9);
+
+        $categories = \App\Models\Category::orderBy('name')->get();
+
+        return view('guest.posts.index', compact('posts', 'categories'));
+    }
+
+    /**
+     * Display a specific post for guests (public view).
+     *
+     * @param  int  $id
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function guestShow($id): View
+    {
+        $post = Post::with(['user', 'category', 'images'])->findOrFail($id);
+
+        return view('guest.posts.show', compact('post'));
+    }
+
+    /**
+     * Display a listing of the current user's posts.
+     *
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function userIndex(): View
+    {
+        $posts = Post::with(['user', 'category'])
+            ->where('user_id', Auth::id())
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        $categories = \App\Models\Category::orderBy('name')->get();
+
+        $totalPosts = Post::where('user_id', Auth::id())->count();
+        $publishedPosts = Post::where('user_id', Auth::id())->count();
+        $monthlyPosts = Post::where('user_id', Auth::id())
+            ->whereMonth('created_at', now()->month)
+            ->count();
+
+        return view('user.posts.index', compact('posts', 'categories', 'totalPosts', 'publishedPosts', 'monthlyPosts'));
+    }
+
+    /**
+     * Display a specific post for the current user.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function userShow($id): View
+    {
+        $post = Post::with(['user', 'category', 'images'])
+            ->where('user_id', Auth::id())
+            ->findOrFail($id);
+
+        return view('user.posts.show', compact('post'));
+    }
+
+    /**
+     * Show the form for editing a user's own post.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function userEdit($id): View
+    {
+        $post = Post::where('user_id', Auth::id())->findOrFail($id);
+        $categories = \App\Models\Category::orderBy('name')->get();
+
+        return view('user.posts.edit', compact('post', 'categories'));
+    }
+
+    /**
+     * Update a user's own post.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function userUpdate(Request $request, $id): RedirectResponse
+    {
+        $post = Post::where('user_id', Auth::id())->findOrFail($id);
+        
+        $validated = $request->validate([
+            'title' => 'required|max:255',
+            'content' => 'required',
+            'images' => 'nullable|array|max:5',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'category_id' => 'nullable|exists:categories,id',
+            'delete_images' => 'nullable|array',
+            'delete_images.*' => 'integer|exists:post_images,id'
+        ]);
+
+        $validated['excerpt'] = substr($validated['content'], 0, 100) . (strlen($validated['content']) > 100 ? '...' : '');
+
+        unset($validated['images'], $validated['delete_images']);
+
+        // Handle image deletions
+        if ($request->has('delete_images')) {
+            foreach ($request->delete_images as $imageId) {
+                $imageToDelete = PostImage::where('id', $imageId)->where('post_id', $post->id)->first();
+                if ($imageToDelete) {
+                    if (file_exists(public_path($imageToDelete->image_path))) {
+                        unlink(public_path($imageToDelete->image_path));
+                    }
+                    if (file_exists(public_path($imageToDelete->thumbnail_path))) {
+                        unlink(public_path($imageToDelete->thumbnail_path));
+                    }
+                    $imageToDelete->delete();
+                }
+            }
+        }
+
+        // Handle new image uploads
+        if ($request->hasFile('images')) {
+            $this->handleMultipleImageUpload($request->file('images'), $post);
+        }
+
+        $post->update($validated);
+
+        return redirect()->route('user.posts.index')
+            ->with('success', 'Post updated successfully!');
+    }
+
+    /**
+     * Delete a user's own post (soft delete).
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function userDestroy($id): RedirectResponse
+    {
+        $post = Post::where('user_id', Auth::id())->findOrFail($id);
+        
+        $post->delete(); // Soft delete
+
+        return redirect()->route('user.posts.index')
+            ->with('success', 'Post moved to trash successfully!');
+    }
+
+    /**
+     * Archive a user's own post (soft delete).
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function userArchive($id): RedirectResponse
+    {
+        $post = Post::where('user_id', Auth::id())->findOrFail($id);
+        
+        $post->delete(); // Soft delete
+
+        return redirect()->route('user.posts.index')
+            ->with('success', 'Post archived successfully!');
+    }
+
+    /**
+     * Force delete a user's own post (permanent deletion).
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function userForceDelete($id): RedirectResponse
+    {
+        $post = Post::withTrashed()->where('user_id', Auth::id())->findOrFail($id);
+        
+        // Delete associated images
+        foreach ($post->images as $image) {
+            if (file_exists(public_path($image->image_path))) {
+                unlink(public_path($image->image_path));
+            }
+            if (file_exists(public_path($image->thumbnail_path))) {
+                unlink(public_path($image->thumbnail_path));
+            }
+            $image->delete();
+        }
+        
+        $post->forceDelete(); // Permanent delete
+
+        return redirect()->route('user.archives.index')
+            ->with('success', 'Post permanently deleted!');
+    }
+
+    /**
+     * Display archived posts for the current user.
+     *
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function userArchives(): View
+    {
+        $archivedPosts = Post::onlyTrashed()
+            ->with(['user', 'category'])
+            ->where('user_id', Auth::id())
+            ->orderBy('deleted_at', 'desc')
+            ->paginate(10);
+
+        return view('user.archives.index', compact('archivedPosts'));
+    }
+
+    /**
+     * Restore a user's archived post.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function userRestore($id): RedirectResponse
+    {
+        $post = Post::withTrashed()->where('user_id', Auth::id())->findOrFail($id);
+        
+        $post->restore();
+
+        return redirect()->route('user.archives.index')
+            ->with('success', 'Post restored successfully!');
+    }
+
+    /**
+     * Display a listing of the posts (legacy method for backward compatibility).
      *
      * @return \Illuminate\Contracts\View\View
      */
     public function index(): View
     {
-        $posts = Post::with(['user', 'category'])
-            ->orderBy('id', 'desc')->oldest()
-            ->paginate(6);
-
-        return view('posts.index', compact('posts'));
+        return $this->guestIndex();
     }
 
     /**
-     * List all active posts for admin.
+     * Display the specified post (legacy method for backward compatibility).
+     *
+     * @param  int  $id
+     * @return \Illuminate\Contracts\View\View
+     */
+    public function show($id): View
+    {
+        return $this->guestShow($id);
+    }
+
+    /**
+     * List all active posts for admin with enhanced data.
      *
      * @return \Illuminate\Contracts\View\View
      */
     public function list(): View
     {
         $posts = Post::with(['user', 'category'])
-            ->orderBy('id', 'desc')
-            ->paginate(10);
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
         
-        return view('admin.posts.index', compact('posts'));
+        $categories = \App\Models\Category::all();
+        $authors = \App\Models\User::has('posts')->get();
+        
+        // Current month stats
+        $totalPosts = Post::count();
+        $publishedPosts = Post::count();
+        $totalCategories = \App\Models\Category::count();
+        $thisMonthPosts = Post::whereMonth('created_at', now()->month)
+            ->whereYear('created_at', now()->year)
+            ->count();
+        
+        // Last month stats for comparison
+        $lastMonthPosts = Post::whereMonth('created_at', now()->subMonth()->month)
+            ->whereYear('created_at', now()->subMonth()->year)
+            ->count();
+        
+        // Calculate percentage changes
+        $postsGrowth = $lastMonthPosts > 0 
+            ? round((($thisMonthPosts - $lastMonthPosts) / $lastMonthPosts) * 100) 
+            : ($thisMonthPosts > 0 ? 100 : 0);
+        
+        $stats = [
+            'total' => $totalPosts,
+            'published' => $publishedPosts,
+            'categories' => $totalCategories,
+            'thisMonth' => $thisMonthPosts,
+            'postsGrowth' => $postsGrowth,
+        ];
+        
+        return view('admin.posts.enhanced-index', compact('posts', 'categories', 'authors', 'stats'));
     }
 
     /**
@@ -129,19 +389,6 @@ class PostController extends Controller
     }
 
     /**
-     * Display the specified post.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Contracts\View\View
-     */
-    public function show($id): View
-    {
-        $post = Post::with(['user', 'category'])->findOrFail($id);
-
-        return view('posts.show', compact('post'));
-    }
-
-    /**
      * Show the form for editing the specified post.
      *
      * @param  int  $id
@@ -149,7 +396,7 @@ class PostController extends Controller
      */
     public function edit($id): View
     {
-        $post = Post::with('user')->findOrFail($id);
+        $post = Post::with('user', 'images')->findOrFail($id);
         $categories = \App\Models\Category::orderBy('name')->get();
 
         return view('admin.posts.edit', compact('post', 'categories'));
@@ -216,6 +463,21 @@ class PostController extends Controller
      * @param int $id
      * @return \Illuminate\Http\RedirectResponse
      */
+    /**
+     * Soft delete (archive) a post - alias for archive()
+     *
+     * @param int $id
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function destroy($id): RedirectResponse
+    {
+        $post = Post::findOrFail($id);
+        $post->delete();
+
+        return redirect()->route('admin.posts.index')
+            ->with('success', 'Post archived successfully!');
+    }
+
     public function destroyPermanent($id): RedirectResponse
     {
         $post = Post::withTrashed()->findOrFail($id);
@@ -253,6 +515,65 @@ class PostController extends Controller
 
         return redirect()->route('admin.posts.index')
             ->with('success', 'Post restored successfully!');
+    }
+
+    /**
+     * Archive multiple posts at once
+     */
+    public function bulkArchive(Request $request): RedirectResponse
+    {
+        $postIds = $request->input('post_ids', []);
+        
+        if (empty($postIds)) {
+            return redirect()->route('admin.posts.index')
+                ->with('error', 'No posts selected.');
+        }
+
+        $count = Post::whereIn('id', $postIds)->delete();
+
+        return redirect()->route('admin.posts.index')
+            ->with('success', "{$count} post(s) archived successfully!");
+    }
+
+    /**
+     * Restore multiple posts at once
+     */
+    public function bulkRestore(Request $request): RedirectResponse
+    {
+        $ids = json_decode($request->input('ids'), true);
+        
+        if (!is_array($ids) || empty($ids)) {
+            return redirect()->route('admin.archives.index')
+                ->with('error', 'No posts selected.');
+        }
+
+        $count = Post::withTrashed()->whereIn('id', $ids)->restore();
+
+        return redirect()->route('admin.archives.index')
+            ->with('success', "{$count} post(s) restored successfully!");
+    }
+
+    /**
+     * Permanently delete multiple posts at once
+     */
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $ids = json_decode($request->input('ids'), true);
+        
+        if (!is_array($ids) || empty($ids)) {
+            return redirect()->route('admin.archives.index')
+                ->with('error', 'No posts selected.');
+        }
+
+        $posts = Post::withTrashed()->whereIn('id', $ids)->get();
+        $count = $posts->count();
+
+        foreach ($posts as $post) {
+            $post->forceDelete();
+        }
+
+        return redirect()->route('admin.archives.index')
+            ->with('success', "{$count} post(s) permanently deleted!");
     }
 
     /**

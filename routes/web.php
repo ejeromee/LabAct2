@@ -11,8 +11,9 @@ Route::get('/services', [PageController::class, 'services'])->name('services');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 
-Route::get('/posts', [PostController::class, 'index'])->name('posts.index');
-Route::get('/posts/{id}', [PostController::class, 'show'])->name('posts.show');
+// Guest posts - public view
+Route::get('/posts', [PostController::class, 'guestIndex'])->name('posts.index');
+Route::get('/posts/{id}', [PostController::class, 'guestShow'])->name('posts.show');
 
 Route::middleware([
     'auth:sanctum',
@@ -23,9 +24,20 @@ Route::middleware([
         return view('dashboard');
     })->name('dashboard');
 
+    // Regular User Routes
     Route::middleware(['role:user'])->prefix('user')->group(function () {
+        // User's own posts view
+        Route::get('/posts', [PostController::class, 'userIndex'])->name('user.posts.index');
+        Route::get('/archives', [PostController::class, 'userArchives'])->name('user.archives.index');
         Route::get('/posts/create', [PostController::class, 'create'])->name('user.posts.create');
         Route::post('/posts', [PostController::class, 'store'])->name('user.posts.store');
+        Route::get('/posts/{id}', [PostController::class, 'userShow'])->name('user.posts.show');
+        Route::get('/posts/{id}/edit', [PostController::class, 'userEdit'])->name('user.posts.edit');
+        Route::put('/posts/{id}', [PostController::class, 'userUpdate'])->name('user.posts.update');
+        Route::delete('/posts/{id}', [PostController::class, 'userDestroy'])->name('user.posts.destroy');
+        Route::delete('/posts/archive/{id}', [PostController::class, 'userArchive'])->name('user.posts.archive');
+        Route::delete('/posts/force-delete/{id}', [PostController::class, 'userForceDelete'])->name('user.posts.force-delete');
+        Route::patch('/posts/restore/{id}', [PostController::class, 'userRestore'])->name('user.posts.restore');
     });
 
     // Admin
@@ -35,6 +47,12 @@ Route::middleware([
         Route::get('/archives/index', [PostController::class, 'showArchive'])->name('admin.archives.index');
         Route::get('/posts/create', [PostController::class, 'create'])->name('admin.posts.create');
         Route::post('/posts', [PostController::class, 'store'])->name('admin.posts.store');
+        
+        // Bulk actions must come before {id} routes
+        Route::delete('/posts/bulk-archive', [PostController::class, 'bulkArchive'])->name('admin.posts.bulk-archive');
+        Route::patch('/archives/bulk-restore', [PostController::class, 'bulkRestore'])->name('admin.archives.bulk-restore');
+        Route::delete('/archives/bulk-delete', [PostController::class, 'bulkDelete'])->name('admin.archives.bulk-delete');
+        
         Route::get('/posts/{id}/edit', [PostController::class, 'edit'])->name('admin.posts.edit');
         Route::put('/posts/{id}', [PostController::class, 'update'])->name('admin.posts.update');
         Route::delete('/posts/{id}', [PostController::class, 'destroy'])->name('admin.posts.destroy');

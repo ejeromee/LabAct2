@@ -74,6 +74,8 @@ class Post extends Model
         // Fallback to legacy single image
         if ($this->image) {
             return (object) [
+                'image_path' => $this->image,
+                'thumbnail_path' => $this->thumbnail ? 'storage/posts/thumbnails/' . basename($this->image) : $this->image,
                 'image_url' => asset($this->image),
                 'thumbnail_url' => $this->thumbnail
             ];
